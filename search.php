@@ -1,4 +1,6 @@
 <?php
+ob_start();
+header('Content-Type: text/html;');
 error_reporting(E_ALL);
 mb_internal_encoding('UTF-8');
 /*
@@ -13,14 +15,14 @@ mb_internal_encoding('UTF-8');
 	<title>Search</title>
 </head>
 <body>
-
+	<h1>Поиск</h1>
 <?php
 
 function string_cut($word) { // обрезать кавычки
 	$word = mb_substr($word, 1);
 	$word = mb_substr($word, 0, -1);
 	return $word;
-	}
+}
 
 function highlight_one( $content, $word) { // заменить как единый кусок
     $replace = '<span style="background-color: #FEFF49;">' . $word . '</span>'; // create replacement
@@ -37,6 +39,21 @@ function highlight_many( $content, $words) { // заменить несколь�
 		}
 	}echo '<span style="color: red;">' .$content. '</span>';
 }
+	
+function string_to_array ($string) { //str_split так сказать
+	$array = '';
+    $strlen = mb_strlen($string); 
+    while ($strlen) { 
+        $array[] = mb_substr($string,0,1,'UTF-8'); 
+        $string = mb_substr($string,1,$strlen,'UTF-8');
+        $strlen = mb_strlen($string); 
+    } 
+    return $array; 
+}
+	
+function replace_value(&$value) { // манипуляция с элементами массива
+    $value = str_replace('"','',$value);
+}
 
 $text = 'Стволовые клетки — недифференцированные (незрелые) клетки, имеющиеся у многих видов многоклеточных организмов. Стволовые клетки способны самообновляться, образуя новые стволовые клетки, делиться посредством митоза и дифференцироваться в специализированные клетки, то есть превращаться в клетки различных органов и тканей. Развитие многоклеточных организмов начинается с одной стволовой клетки, которую принято называть зиготой. В результате многочисленных циклов деления и процесса дифференцировки образуются все виды клеток, характерные для данного биологического вида.';
 
@@ -52,34 +69,52 @@ $text = 'Стволовые клетки — недифференцирован�
 
 if(isset($_GET['search_string'])) { // слово которое нужно найти и выделить
 
-	echo 'Поиск по тексту: '.($_GET['search_string']).'<br>';
-	echo '<br>';
+	$search_needles = explode(' ',$_GET['search_string']); // что будем искать
 
-	//if ((mb_stripos($_GET['search_string'],'"')) and (mb_strripos($_GET['search_string'],'"')) != 0) { // поиск = "в кавычках"
+	$text_pieces = explode(' ', $text); // где будем искать
 
-		$string = string_cut($_GET['search_string']);
-		highlight_one ($text, $string);
-		
-	//}
+	//echo mb_detect_encoding($_GET['search_string']); // проверка кодировки
 
-	if (!mb_stripos($_GET['search_string'],'"') && !mb_strripos($_GET['search_string'],'"')){
+	$letters = string_to_array($_GET['search_string']); //str_split так сказать
 
-		print_r($_GET['search_string']);
+	$errors = array();
 
-		if (mb_stripos($_GET['search_string'],' ')) { // поиск = несколько слов
+	if (mb_strlen($_GET['search_string']) < 1)
+	die($errors[] = error_style('Запрос пустой :(',$text));
 
-			$string = explode(' ', $_GET['search_string']) ;
-			highlight_many($text,$string);
-		}
-		else{ // поиск = одно слово
-			highlight_one ($text, $_GET['search_string']);
-		}
-		
+	array_walk($search_needles, 'replace_value'); // обрезать кавычки для последующего сравнения в каждом элементе массива
+
+	if (!array_intersect($search_needles,$text_pieces)) // находим схождение между текстом и поиском
+	die($errors[] = error_style('Нет совпадения :(',$text));
+?>
+<p><span class='bold'>Поиск по тексту: </span><?=($_GET['search_string'])?></p>
+<?php
+
+	if ( ('"' == end($letters)) && ('"' == reset($letters)) ) { // поиск = "в кавычках"
+
+		$string = implode($letters);
+		$string = string_cut($string);
+		highlight_one($text,$string);
+		return $string;
 	}
-	else { echo 'что происходить :(';}
+
+	if (mb_stripos($_GET['search_string'],' ')) { // поиск = несколько слов или с пробелом
+
+		$string = explode(' ', $_GET['search_string']) ;
+		//print_r($string);
+		highlight_many($text,$string);
+	}
+
+	else{ // поиск = одно слово
+		highlight_one ($text, $_GET['search_string']);
+	}
+		
+	//header("Location:index.php");
+	//exit();
 }
 
-?>
+if (empty($_GET['search_string'])) {echo $text;}
 
+?>
 </body>
 </html>
